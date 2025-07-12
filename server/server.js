@@ -1,48 +1,80 @@
-        // server/server.js
-        // This is the main entry point for your Express.js server.
-       require('dotenv').config(); 
-        const express = require('express');
-        const dotenv = require('dotenv');
-        const morgan = require('morgan');
-        const cors = require('cors');
-        const connectDB = require('./config/db');
-        const postRoutes = require('./routes/postRoutes');
-        const categoryRoutes = require('./routes/categoryRoutes');
-        const authRoutes = require('./routes/authRoutes');
-        // Import the entire errorMiddleware module
-        const errorMiddleware = require('./middleware/errorMiddleware'); // Changed import
 
-        // Load environment variables from .env file
-        
+// server.js - Main server file for the MERN blog application
 
-        // Connect to MongoDB
-        connectDB();
+// Import required modules
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const path = require('path');
 
-        const app = express();
+// Import routes
+const postRoutes = require('./routes/posts');
+const categoryRoutes = require('./routes/categories');
+const authRoutes = require('./routes/auth');
 
-        // Middleware
-        app.use(express.json()); // Body parser for JSON data
-        app.use(express.urlencoded({ extended: false })); // Body parser for URL-encoded data
-        app.use(morgan('dev')); // HTTP request logger
-        app.use(cors()); // Enable CORS for all origins
+// Load environment variables
+dotenv.config();
 
-        // API Routes
-        app.use('/api/posts', postRoutes);
-        app.use('/api/categories', categoryRoutes);
-        app.use('/api/auth', authRoutes);
-        // Root route for testing
-        app.get('/', (req, res) => {
-            res.send('API is running...');
-        });
+// Initialize Express app
+const app = express();
+const PORT = process.env.PORT || 5000;
 
-        // Error handling middleware
-        // Use the functions from the imported errorMiddleware object
-        app.use(errorMiddleware.notFound);
-        app.use(errorMiddleware.errorHandler);
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-        const PORT = process.env.PORT || 5000;
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-        app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
-        });
-        
+// Log requests in development mode
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+  });
+}
+
+// API routes
+app.use('/api/posts', postRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/auth', authRoutes);
+
+// Root route
+app.get('/', (req, res) => {
+  res.send('MERN Blog API is running');
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.statusCode || 500).json({
+    success: false,
+    error: err.message || 'Server Error',
+  });
+});
+
+// Connect to MongoDB and start server
+mongoose
+  .connect(process.env.MONGODB_URI)
+  .then(() => {
+    console.log('Connected to MongoDB');
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to connect to MongoDB', err);
+    process.exit(1);
+  });
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Promise Rejection:', err);
+  // Close server & exit process
+  process.exit(1);
+});
+
+module.exports = app; 
+
